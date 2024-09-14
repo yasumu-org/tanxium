@@ -3,6 +3,7 @@ name = "tanxium"
 description = "Standalone JavaScript/TypeScript runtime for Yasumu"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 uuid = { version = "1.10.0", default-features = false, features = [
