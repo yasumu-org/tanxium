@@ -2679,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "tanxium"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "boa_engine",
  "boa_gc",

@@ -16,16 +16,16 @@ use crate::typescript;
 
 pub struct ScriptExtension {
     /// The path to the script
-    path: String,
+    pub path: String,
     /// Whether the script should be transpiled using the TypeScript transpiler
-    transpile: bool,
+    pub transpile: bool,
 }
 
 pub struct DefaultScriptExtension {
     /// The extension script
-    script: &'static str,
+    pub script: &'static str,
     /// Whether the script should be transpiled using the TypeScript transpiler
-    transpile: bool,
+    pub transpile: bool,
 }
 
 pub struct Tanxium {
@@ -77,6 +77,19 @@ impl Tanxium {
             })?;
 
         Ok(Tanxium { context, options })
+    }
+
+    /// Initializes the runtime with the builtins and default extensions
+    pub fn initialize_runtime(&mut self) -> Result<(), std::io::Error> {
+        self.init_runtime_apis().map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to initialize runtime: {}", e),
+            )
+        })?;
+        self.load_default_extensions()?;
+
+        Ok(())
     }
 
     /// Initialize the runtime with the builtins
