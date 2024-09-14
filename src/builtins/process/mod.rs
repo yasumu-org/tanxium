@@ -21,35 +21,13 @@ fn sleep(
     }
 }
 
-pub fn runtime_init(
-    context: &mut Context,
-    app: tauri::AppHandle,
-    id: String,
-    ts_supported: bool,
-    is_test: bool,
-) {
-    let package = app.package_info();
-    let app_version = format!(
-        "{}.{}.{}",
-        package.version.major, package.version.minor, package.version.patch
-    );
-
+pub fn runtime_init(context: &mut Context, ts_supported: bool) {
     let process_version = ObjectInitializer::new(context)
         .property(
             js_str!("tanxium"),
-            JsString::from(app_version.clone()),
+            JsString::from(env!("CARGO_PKG_VERSION")),
             Attribute::all(),
         )
-        .build();
-
-    let wrk = match current_workspace {
-        Some(wrk) => JsValue::String(JsString::from(wrk)),
-        None => JsValue::null(),
-    };
-
-    let process_workspace = ObjectInitializer::new(context)
-        .property(js_str!("id"), JsString::from(id), Attribute::all())
-        .property(js_str!("current"), wrk, Attribute::all())
         .build();
 
     let app_script_features = ObjectInitializer::new(context)
@@ -58,13 +36,12 @@ pub fn runtime_init(
             JsValue::Boolean(ts_supported),
             Attribute::all(),
         )
-        .property(js_str!("test"), JsValue::Boolean(is_test), Attribute::all())
         .build();
 
     let process = ObjectInitializer::new(context)
         .property(
             js_str!("version"),
-            JsString::from(app_version),
+            JsString::from(env!("CARGO_PKG_VERSION")),
             Attribute::all(),
         )
         .property(js_str!("features"), app_script_features, Attribute::all())

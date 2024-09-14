@@ -1,16 +1,12 @@
 use std::rc::Rc;
 
-use boa_engine::builtins::promise::PromiseState;
 use boa_engine::context::ContextBuilder;
-use boa_engine::object::ObjectInitializer;
-use boa_engine::property::Attribute;
-use boa_engine::{js_str, js_string, Context, JsResult, JsValue, Source};
+use boa_engine::{Context, JsResult, JsValue, Source};
 
-use crate::builtins;
 use crate::runtime;
 use crate::typescript;
 
-use typescript::{transpile_typescript, YASUMU_WORKSPACE_SCRIPT_NAME, YASUMU_WORKSPACE_SCRIPT_URL};
+use typescript::transpile_typescript;
 
 pub struct ScriptExtension {
     path: String,
