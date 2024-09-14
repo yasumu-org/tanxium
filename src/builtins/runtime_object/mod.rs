@@ -1,10 +1,13 @@
 use boa_engine::{
-    js_str, js_string, object::ObjectInitializer, property::Attribute, Context, JsArgs, JsResult,
-    JsString, JsValue, NativeFunction,
+    js_str, js_string, object::ObjectInitializer, property::Attribute, Context, JsArgs, JsError,
+    JsResult, JsString, JsValue, NativeFunction,
 };
 use futures_util::Future;
 use std::time::{Duration, Instant};
 
+use crate::tanxium::Tanxium;
+
+/// A simple sleep function that sleeps for the given number of milliseconds
 fn sleep(
     _this: &JsValue,
     args: &[JsValue],
@@ -21,7 +24,15 @@ fn sleep(
     }
 }
 
-pub fn runtime_init(context: &mut Context, ts_supported: bool) {
+/// Initialize the runtime process object
+/// This object is available in the global scope as `TanxiumOptions.global_object_name`
+pub fn runtime_object_init(tanxium: &mut Tanxium) -> Result<(), JsError> {
+    if !tanxium.options.builtins.runtime {
+        return Ok(());
+    }
+
+    let ts_supported = tanxium.options.typescript;
+    let context = &mut tanxium.context;
     let process_version = ObjectInitializer::new(context)
         .property(
             js_str!("tanxium"),
@@ -49,7 +60,11 @@ pub fn runtime_init(context: &mut Context, ts_supported: bool) {
         .function(NativeFunction::from_async_fn(sleep), js_string!("sleep"), 1)
         .build();
 
-    context
-        .register_global_property(js_str!("process"), process, Attribute::all())
-        .unwrap();
+    context.register_global_property(
+        JsString::from(tanxium.options.global_object_name.as_str()),
+        process,
+        Attribute::all(),
+    )?;
+
+    Ok(())
 }

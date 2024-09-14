@@ -1,21 +1,3 @@
-# Tanxium
-
-Standalone JavaScript runtime for [Yasumu](https://github.com/yasumu-org/yasumu).
-
-> [!CAUTION]
-> This project is still in development and not ready for production use.
-
-## Installation
-
-```bash
-cargo add tanxium boa_engine
-```
-
-## Example
-
-This is an example of how to use Tanxium to run JavaScript/TypeScript code. You can also find this example in the [`examples`](./examples/) directory.
-
-```rust
 use boa_engine::*;
 use std::io::Write;
 use tanxium::tanxium;
@@ -54,9 +36,8 @@ fn main() {
     tanxium.init_runtime_apis().unwrap();
     tanxium.load_default_extensions().unwrap();
 
-    // add custom native functions, in this case, we add a prompt function to take input from the user
+    // add custom native functions
     let ctx = &mut tanxium.context;
-
     ctx.register_global_builtin_callable(
         js_string!("prompt"),
         1,
@@ -92,10 +73,3 @@ fn main() {
     // Execute the code
     tanxium.execute(code.as_str()).unwrap();
 }
-```
-
-Now you can run your JavaScript/TypeScript code using Tanxium:
-
-```bash
-cargo run ./file.ts
-```

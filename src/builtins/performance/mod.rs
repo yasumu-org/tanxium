@@ -1,9 +1,17 @@
 use boa_engine::{
-    js_str, js_string, object::ObjectInitializer, property::Attribute, Context, JsValue,
+    js_str, js_string, object::ObjectInitializer, property::Attribute, JsError, JsValue,
     NativeFunction,
 };
 
-pub fn performance_init(context: &mut Context) {
+use crate::tanxium::Tanxium;
+
+/// Initialize the runtime performance object
+pub fn performance_init(tanxium: &mut Tanxium) -> Result<(), JsError> {
+    if !tanxium.options.builtins.performance {
+        return Ok(());
+    }
+
+    let context = &mut tanxium.context;
     let time_origin = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -28,7 +36,7 @@ pub fn performance_init(context: &mut Context) {
         )
         .build();
 
-    context
-        .register_global_property(js_str!("performance"), performance, Attribute::all())
-        .unwrap();
+    context.register_global_property(js_str!("performance"), performance, Attribute::all())?;
+
+    Ok(())
 }

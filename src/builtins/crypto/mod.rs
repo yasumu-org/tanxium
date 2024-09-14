@@ -1,10 +1,18 @@
 use boa_engine::{
-    js_str, js_string, object::ObjectInitializer, property::Attribute, Context, JsString, JsValue,
+    js_str, js_string, object::ObjectInitializer, property::Attribute, JsError, JsString, JsValue,
     NativeFunction,
 };
 use std::str::FromStr;
 
-pub fn crypto_init(context: &mut Context) {
+use crate::tanxium::Tanxium;
+
+/// Initialize the runtime crypto object
+pub fn crypto_init(tanxium: &mut Tanxium) -> Result<(), JsError> {
+    if !tanxium.options.builtins.crypto {
+        return Ok(());
+    }
+
+    let context = &mut tanxium.context;
     let crypto = ObjectInitializer::new(context)
         .function(
             NativeFunction::from_fn_ptr(|_, _, _| {
@@ -19,7 +27,7 @@ pub fn crypto_init(context: &mut Context) {
         )
         .build();
 
-    context
-        .register_global_property(js_str!("crypto"), crypto, Attribute::all())
-        .unwrap();
+    context.register_global_property(js_str!("crypto"), crypto, Attribute::all())?;
+
+    Ok(())
 }

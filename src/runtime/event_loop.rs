@@ -1,3 +1,5 @@
+// based on boa_engine example
+
 use std::{
     cell::{Cell, RefCell},
     collections::VecDeque,
@@ -10,6 +12,7 @@ use boa_engine::{
 use futures_util::stream::FuturesUnordered;
 use smol::{future, stream::StreamExt, LocalExecutor};
 
+/// Represents an event loop that can run jobs. This event loop is used by the boa `Context` to run async jobs.
 pub struct EventLoop<'a> {
     executor: LocalExecutor<'a>,
     futures: RefCell<FuturesUnordered<FutureJob>>,
@@ -17,6 +20,7 @@ pub struct EventLoop<'a> {
 }
 
 impl<'a> EventLoop<'a> {
+    /// Create a new event loop
     pub fn new() -> Self {
         Self {
             futures: RefCell::default(),

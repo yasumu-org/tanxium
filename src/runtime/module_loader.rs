@@ -1,21 +1,32 @@
 use boa_engine::{
-    job::NativeJob, module::ModuleLoader, JsData, JsNativeError, JsResult, JsValue, Module,
+    job::NativeJob, module::ModuleLoader, JsError, JsNativeError, JsResult, JsValue, Module,
 };
-use boa_gc::{Finalize, Trace};
 use boa_parser::Source;
 use reqwest::blocking::Client;
 use std::{path::Path, time::Duration};
 
 use crate::typescript::transpile_typescript;
 
-#[derive(Default, Trace, Finalize, JsData)]
-struct YasumuHostData {
-    #[unsafe_ignore_trace]
+/// A module loader that can load modules from the file system or from remote sources.
+pub struct YasumuModuleLoader {
     cwd: String,
+    typescript: bool,
 }
 
-#[derive(Debug, Default)]
-pub struct YasumuModuleLoader {}
+impl YasumuModuleLoader {
+    pub fn new(cwd: String, typescript: bool) -> Self {
+        Self { cwd, typescript }
+    }
+
+    pub fn should_transpile<'a>(&self, specifier: &'a str) -> bool {
+        if !self.typescript {
+            return false;
+        }
+
+        let ts_exts = vec![".ts", ".cts", ".mts", ".tsx"];
+        ts_exts.iter().any(|ext| specifier.ends_with(ext))
+    }
+}
 
 impl ModuleLoader for YasumuModuleLoader {
     fn load_imported_module(
@@ -27,6 +38,8 @@ impl ModuleLoader for YasumuModuleLoader {
         >,
         context: &mut boa_engine::Context,
     ) {
+        let is_ts_enabled = self.typescript.clone();
+        let cwd = self.cwd.clone();
         let specifier = specifier.to_std_string_escaped();
         let specifier = if specifier.starts_with("file://") {
             specifier.replace("file://", "")
@@ -39,6 +52,7 @@ impl ModuleLoader for YasumuModuleLoader {
             specifier.starts_with("http://") || specifier.starts_with("https://");
 
         if is_file {
+            let is_ts = self.should_transpile(specifier.as_str());
             let job = Box::pin(async move {
                 let source: Result<String, std::io::Error> = async {
                     let path = std::path::Path::new(specifier.as_str()).canonicalize()?;
@@ -47,57 +61,47 @@ impl ModuleLoader for YasumuModuleLoader {
                 }
                 .await;
 
-                create_fs_native_job(source, finish_load)
+                load_module_inner(source, is_ts, finish_load)
             });
 
             context.job_queue().enqueue_future_job(job, context);
         } else if is_remote_script {
             let job = Box::pin(async move {
+                let mut is_ts = false;
                 let script: Result<String, std::io::Error> = async {
-                    println!("Fetching remote script: {}", specifier.clone());
+                    println!("\x1b[92mFetching module {}\x1b[0m", specifier.clone());
                     let client = Client::new();
                     let res = client
-                        .get(specifier.as_str())
+                        .get(specifier.clone().as_str())
                         .timeout(Duration::from_secs(30))
                         .send()
                         .map_err(|e| {
                             std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
                         })?;
-                    let is_typescript = match res.headers().get("content-type") {
-                        Some(content_type) => content_type == "application/typescript",
-                        None => false,
-                    };
-                    println!(
-                        "Remote script content type is typescript: {:?}",
-                        is_typescript.clone()
-                    );
+
+                    if is_ts_enabled {
+                        is_ts = match res.headers().get("content-type") {
+                            Some(content_type) => content_type == "application/typescript",
+                            None => false,
+                        };
+                    }
+
                     let text = res.text().map_err(|e| {
                         std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
                     })?;
 
-                    println!("Remote script fetched");
-
-                    if is_typescript {
-                        match transpile_typescript(text.as_str()) {
-                            Ok(js) => Ok(js),
-                            Err(e) => Err(std::io::Error::new(
-                                std::io::ErrorKind::InvalidData,
-                                e.to_string(),
-                            )),
-                        }
-                    } else {
-                        Ok(text)
-                    }
+                    Ok(text)
                 }
                 .await;
 
-                create_fs_native_job(script, finish_load)
+                load_module_inner(script, is_ts, finish_load)
             });
 
             context.job_queue().enqueue_future_job(job, context);
         } else {
-            let cwd = get_cwd(context);
             let job = Box::pin(async move {
+                let mut transpile = false;
+
                 let content: Result<String, std::io::Error> = async {
                     let path = Path::new(cwd.as_str()).join(&specifier);
                     let possible_paths = vec![
@@ -111,19 +115,14 @@ impl ModuleLoader for YasumuModuleLoader {
                         "index.tsx",
                     ];
 
-                    let ts_exts = vec!["ts", "cts", "mts", "tsx"];
-
                     let mut found = false;
-                    let mut is_ts = false;
 
                     for module_file in possible_paths {
                         let js_path = path.join(module_file);
                         if js_path.exists() {
                             found = true;
-                            is_ts = js_path
-                                .extension()
-                                .map_or(false, |ext| ts_exts.iter().any(|ts_ext| ext == *ts_ext));
-                            break;
+                            let ts_exts = vec![".ts", ".cts", ".mts", ".tsx"];
+                            transpile = ts_exts.iter().any(|ext| specifier.ends_with(ext))
                         }
                     }
 
@@ -135,22 +134,12 @@ impl ModuleLoader for YasumuModuleLoader {
                     }
 
                     let content = smol::fs::read_to_string(path).await?;
-                    if is_ts {
-                        let transpiled = transpile_typescript(content.as_str());
-                        match transpiled {
-                            Ok(js) => Ok(js),
-                            Err(e) => Err(std::io::Error::new(
-                                std::io::ErrorKind::InvalidData,
-                                e.to_string(),
-                            )),
-                        }
-                    } else {
-                        Ok(content)
-                    }
+
+                    Ok(content)
                 }
                 .await;
 
-                create_fs_native_job(content, finish_load)
+                load_module_inner(content, transpile, finish_load)
             });
 
             context.job_queue().enqueue_future_job(job, context);
@@ -158,8 +147,10 @@ impl ModuleLoader for YasumuModuleLoader {
     }
 }
 
-fn create_fs_native_job(
+/// Create a native job that loads a module from the file system.
+fn load_module_inner(
     content: Result<String, std::io::Error>,
+    transpile: bool,
     finish_load: Box<dyn FnOnce(JsResult<Module>, &mut boa_engine::Context)>,
 ) -> NativeJob {
     NativeJob::new(move |context| -> JsResult<JsValue> {
@@ -175,33 +166,25 @@ fn create_fs_native_job(
             }
         };
 
-        println!("[FINAL] Loaded module content:\n{}", content.clone());
+        let source: Result<String, JsError> = if transpile {
+            let value = transpile_typescript(content.as_str())
+                .map_err(|e| JsNativeError::syntax().with_message(e.to_string()))?;
+            Ok(value)
+        } else {
+            Ok(content)
+        };
 
-        let source = Source::from_bytes(content.as_str());
-        let module = Module::parse(source, None, context);
-        finish_load(module, context);
-        Ok(JsValue::undefined())
+        match source {
+            Ok(source) => {
+                let source = Source::from_bytes(source.as_str());
+                let module = Module::parse(source, None, context);
+                finish_load(module, context);
+                Ok(JsValue::undefined())
+            }
+            Err(err) => {
+                finish_load(Err(err), context);
+                Ok(JsValue::undefined())
+            }
+        }
     })
-}
-
-fn get_cwd(context: &mut boa_engine::Context) -> String {
-    let realm = context.realm().clone();
-    let host_defined = realm.host_defined();
-    let yasumu_context_data = host_defined.get::<YasumuHostData>().unwrap();
-
-    yasumu_context_data.cwd.clone()
-}
-
-pub fn set_cwd(context: &mut boa_engine::Context, cwd: String) {
-    let result = context
-        .realm()
-        .clone()
-        .host_defined_mut()
-        .insert(YasumuHostData { cwd: cwd.clone() });
-
-    if result.is_none() {
-        println!("Failed to set current working directory");
-    } else {
-        println!("Current working directory set to: {}", cwd);
-    }
 }
