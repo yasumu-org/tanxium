@@ -5,9 +5,7 @@ use boa_engine::context::ContextBuilder;
 use boa_engine::job::JobQueue;
 use boa_engine::module::ModuleLoader;
 use boa_engine::property::Attribute;
-use boa_engine::{
-    js_str, js_string, Context, JsError, JsResult, JsString, JsValue, Module, Source,
-};
+use boa_engine::*;
 use boa_runtime::Console;
 
 use crate::builtins;

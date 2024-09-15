@@ -50,11 +50,6 @@ pub fn runtime_object_init(tanxium: &mut Tanxium) -> Result<(), JsError> {
         .build();
 
     let process = ObjectInitializer::new(context)
-        .property(
-            js_str!("version"),
-            JsString::from(env!("CARGO_PKG_VERSION")),
-            Attribute::all(),
-        )
         .property(js_str!("features"), app_script_features, Attribute::all())
         .property(js_str!("versions"), process_version, Attribute::all())
         .function(NativeFunction::from_async_fn(sleep), js_string!("sleep"), 1)
