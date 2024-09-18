@@ -7,6 +7,8 @@ use std::{path::Path, time::Duration};
 
 use crate::typescript::transpile_typescript;
 
+const NPM_LOADER_CDN: &str = "https://cdn.jsdelivr.net/npm/";
+
 /// A module loader that can load modules from the file system or from remote sources.
 pub struct YasumuModuleLoader {
     cwd: String,
@@ -26,6 +28,16 @@ impl YasumuModuleLoader {
         let ts_exts = vec![".ts", ".cts", ".mts", ".tsx"];
         ts_exts.iter().any(|ext| specifier.ends_with(ext))
     }
+
+    pub fn hash_module_specifier<'a>(&self, specifier: &'a str) -> String {
+        let hash = md5::compute(specifier);
+        format!("{:x}", hash)
+    }
+
+    pub fn get_module_cache_path<'a>(&self, specifier: &'a str) -> String {
+        let hash = self.hash_module_specifier(specifier);
+        format!("{}/.yasumu_modules/{}.js", self.cwd, hash)
+    }
 }
 
 impl ModuleLoader for YasumuModuleLoader {
@@ -41,7 +53,9 @@ impl ModuleLoader for YasumuModuleLoader {
         let is_ts_enabled = self.typescript.clone();
         let cwd = self.cwd.clone();
         let specifier = specifier.to_std_string_escaped();
-        let specifier = if specifier.starts_with("file://") {
+        let specifier = if specifier.starts_with("npm:") {
+            format!("{}{}/+esm", NPM_LOADER_CDN, specifier.replace("npm:", ""))
+        } else if specifier.starts_with("file://") {
             specifier.replace("file://", "")
         } else {
             specifier
@@ -66,9 +80,21 @@ impl ModuleLoader for YasumuModuleLoader {
 
             context.job_queue().enqueue_future_job(job, context);
         } else if is_remote_script {
+            let cache_path = self.get_module_cache_path(specifier.as_str());
+
             let job = Box::pin(async move {
+                // Create the cache directory if it doesn't exist
+                smol::fs::create_dir_all(format!("{}/.yasumu_modules", cwd.clone()))
+                    .await
+                    .unwrap_or(());
                 let mut is_ts = false;
                 let script: Result<String, std::io::Error> = async {
+                    if Path::new(cache_path.as_str()).exists() {
+                        let ts_ext = vec![".ts", ".cts", ".mts", ".tsx"];
+                        is_ts = ts_ext.iter().any(|ext| cache_path.ends_with(ext));
+                        return smol::fs::read_to_string(cache_path).await;
+                    }
+
                     println!("\x1b[92mFetching module {}\x1b[0m", specifier.clone());
                     let client = Client::new();
                     let res = client
@@ -89,6 +115,10 @@ impl ModuleLoader for YasumuModuleLoader {
                     let text = res.text().map_err(|e| {
                         std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
                     })?;
+
+                    smol::fs::write(cache_path.clone(), text.as_bytes())
+                        .await
+                        .unwrap_or(());
 
                     Ok(text)
                 }
