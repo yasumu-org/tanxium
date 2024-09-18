@@ -116,7 +116,13 @@ impl ModuleLoader for YasumuModuleLoader {
                         std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
                     })?;
 
-                    smol::fs::write(cache_path.clone(), text.as_bytes())
+                    let target_cache = if is_ts {
+                        cache_path.clone().replace(".js", ".ts")
+                    } else {
+                        cache_path.clone()
+                    };
+
+                    smol::fs::write(target_cache, text.as_bytes())
                         .await
                         .unwrap_or(());
 
