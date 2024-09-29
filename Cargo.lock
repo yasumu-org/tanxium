@@ -2697,8 +2697,9 @@ dependencies = [
 
 [[package]]
 name = "tanxium"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
+ "base64 0.22.1",
  "boa_engine",
  "boa_gc",
  "boa_parser",

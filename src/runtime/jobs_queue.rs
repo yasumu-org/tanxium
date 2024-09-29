@@ -13,13 +13,13 @@ use futures_util::stream::FuturesUnordered;
 use smol::{future, stream::StreamExt, LocalExecutor};
 
 /// Represents an event loop that can run jobs. This event loop is used by the boa `Context` to run async jobs.
-pub struct EventLoop<'a> {
+pub struct TanxiumJobsQueue<'a> {
     executor: LocalExecutor<'a>,
     futures: RefCell<FuturesUnordered<FutureJob>>,
     jobs: RefCell<VecDeque<NativeJob>>,
 }
 
-impl<'a> EventLoop<'a> {
+impl<'a> TanxiumJobsQueue<'a> {
     /// Create a new event loop
     pub fn new() -> Self {
         Self {
@@ -30,7 +30,7 @@ impl<'a> EventLoop<'a> {
     }
 }
 
-impl JobQueue for EventLoop<'_> {
+impl JobQueue for TanxiumJobsQueue<'_> {
     fn enqueue_promise_job(&self, job: NativeJob, _context: &mut Context) {
         self.jobs.borrow_mut().push_back(job);
     }
@@ -93,6 +93,7 @@ impl JobQueue for EventLoop<'_> {
             };
 
             future::zip(fut_queue, job_queue).await;
+            context.borrow_mut().run_jobs();
         }));
     }
 }

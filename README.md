@@ -37,6 +37,7 @@ fn main() {
         performance: true,
         runtime: true,
         console: true,
+        timers: true,
     };
 
     // Initialize Tanxium options
@@ -54,9 +55,8 @@ fn main() {
     tanxium.init_runtime_apis().unwrap();
     tanxium.load_default_extensions().unwrap();
 
-    // add custom native functions, in this case, we add a prompt function to take input from the user
+    // add custom native functions
     let ctx = &mut tanxium.context;
-
     ctx.register_global_builtin_callable(
         js_string!("prompt"),
         1,
@@ -90,7 +90,22 @@ fn main() {
     };
 
     // Execute the code
-    tanxium.execute(code.as_str()).unwrap();
+    let result = tanxium.execute(code.as_str());
+
+    // Print the result
+    match result {
+        Err(e) => {
+            let trace = tanxium
+                .context
+                .stack_trace()
+                .map(|s| format!("{}", s.code_block().name().to_std_string_escaped()))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            eprintln!("{}\n{}", e, trace)
+        }
+        _ => (),
+    }
 }
 ```
 

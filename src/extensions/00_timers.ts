@@ -1,6 +1,6 @@
 (() => {
   // @ts-ignore
-  const runtime = globalThis['__IDENTIFIER__'];
+  const runtime = globalThis[globalThis['__IDENTIFIER__']];
   if (!runtime) return;
 
   const { sleep } = runtime;
@@ -31,7 +31,10 @@
         .then(() => {
           if (timers.has(this.id)) {
             this.cb(...this.args);
-            if (loop) this.start(true);
+            if (loop) {
+              this.start(true);
+              runtime.runJobs();
+            }
           }
         })
         .finally(() => {

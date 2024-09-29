@@ -5,7 +5,7 @@ use boa_engine::{
     JsArgs, JsError, JsNativeError, JsString, JsValue, NativeFunction,
 };
 use nid::Nanoid;
-use rand::RngCore;
+use rand::{Rng, RngCore};
 use std::str::FromStr;
 use ulid::Ulid;
 
@@ -44,6 +44,34 @@ pub fn crypto_init(tanxium: &mut Tanxium) -> Result<(), JsError> {
             }),
             js_string!("randomBytes"),
             1,
+        )
+        .function(
+            NativeFunction::from_fn_ptr(|_, args, _| {
+                let a = args.get_or_undefined(0).as_number();
+                let b = args.get_or_undefined(1).as_number();
+
+                if a.is_some() && b.is_some() {
+                    let a = a.unwrap() as i32;
+                    let b = b.unwrap() as i32;
+
+                    let result = rand::thread_rng().gen_range(a..b);
+
+                    Ok(JsValue::new(result))
+                } else if a.is_some() && b.is_none() {
+                    let a = a.unwrap() as i32;
+
+                    let result = rand::thread_rng().gen_range(0..a);
+
+                    Ok(JsValue::new(result))
+                } else {
+                    return Err(JsError::from(
+                        JsNativeError::typ()
+                            .with_message("randomInt requires at least one argument"),
+                    ));
+                }
+            }),
+            js_string!("randomInt"),
+            2,
         )
         .function(
             NativeFunction::from_fn_ptr(|_, _, _| {

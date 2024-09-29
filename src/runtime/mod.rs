@@ -1,2 +1,2 @@
-pub mod event_loop;
+pub mod jobs_queue;
 pub mod module_loader;

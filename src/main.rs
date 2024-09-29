@@ -19,6 +19,8 @@ fn main() {
         performance: true,
         runtime: true,
         console: true,
+        timers: true,
+        base64: true,
     };
 
     // Initialize Tanxium options
@@ -38,6 +40,15 @@ fn main() {
 
     // add custom native functions
     let ctx = &mut tanxium.context;
+
+    // strict mode
+    ctx.strict(true);
+
+    // set runtime limits if needed
+    let limits = ctx.runtime_limits_mut();
+    limits.set_loop_iteration_limit(10000);
+    limits.set_recursion_limit(1000);
+
     ctx.register_global_builtin_callable(
         js_string!("prompt"),
         1,
@@ -71,5 +82,20 @@ fn main() {
     };
 
     // Execute the code
-    tanxium.execute(code.as_str()).unwrap();
+    let result = tanxium.execute(code.as_str());
+
+    // Print the result
+    match result {
+        Err(e) => {
+            let trace = tanxium
+                .context
+                .stack_trace()
+                .map(|s| format!("{}", s.code_block().name().to_std_string_escaped()))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            eprintln!("{}\n{}", e, trace)
+        }
+        _ => (),
+    }
 }

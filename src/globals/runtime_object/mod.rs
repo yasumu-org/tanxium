@@ -53,6 +53,15 @@ pub fn runtime_object_init(tanxium: &mut Tanxium) -> Result<(), JsError> {
         .property(js_str!("features"), app_script_features, Attribute::all())
         .property(js_str!("versions"), process_version, Attribute::all())
         .function(NativeFunction::from_async_fn(sleep), js_string!("sleep"), 1)
+        .function(
+            NativeFunction::from_fn_ptr(|_, _, ctx| {
+                ctx.run_jobs();
+
+                Ok(JsValue::Undefined)
+            }),
+            js_string!("runJobs"),
+            0,
+        )
         .build();
 
     context.register_global_property(

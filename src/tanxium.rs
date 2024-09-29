@@ -2,13 +2,12 @@ use std::rc::Rc;
 
 use boa_engine::builtins::promise::PromiseState;
 use boa_engine::context::ContextBuilder;
-use boa_engine::job::JobQueue;
 use boa_engine::module::ModuleLoader;
 use boa_engine::property::Attribute;
 use boa_engine::*;
 use boa_runtime::Console;
 
-use crate::builtins;
+use crate::globals;
 use crate::runtime;
 use crate::typescript;
 
@@ -24,6 +23,8 @@ pub struct DefaultScriptExtension {
     pub script: &'static str,
     /// Whether the script should be transpiled using the TypeScript transpiler
     pub transpile: bool,
+    /// Whether the script is enabled
+    pub enabled: bool,
 }
 
 pub struct Tanxium {
@@ -42,6 +43,10 @@ pub struct TanxiumBuiltinsExposure {
     pub runtime: bool,
     /// Whether to expose the console api
     pub console: bool,
+    /// Whether to expose the timers api
+    pub timers: bool,
+    /// Whether to expose the base64 api
+    pub base64: bool,
 }
 
 pub struct TanxiumOptions {
@@ -58,13 +63,13 @@ pub struct TanxiumOptions {
 impl Tanxium {
     /// Create a new Tanxium runtime
     pub fn new(options: TanxiumOptions) -> Result<Self, std::io::Error> {
-        let job_queue = Rc::new(runtime::event_loop::EventLoop::new());
+        let job_queue = Rc::new(runtime::jobs_queue::TanxiumJobsQueue::new());
         let module_loader = Rc::new(runtime::module_loader::YasumuModuleLoader::new(
             options.cwd.clone(),
             options.typescript.clone(),
         ));
         let context = ContextBuilder::new()
-            .job_queue(job_queue)
+            .job_queue(job_queue.clone())
             .module_loader(module_loader)
             .build()
             .map_err(|e| {
@@ -101,9 +106,10 @@ impl Tanxium {
             Attribute::all(),
         )?;
 
-        builtins::crypto::crypto_init(self)?;
-        builtins::performance::performance_init(self)?;
-        builtins::runtime_object::runtime_object_init(self)?;
+        globals::base64::base64_init(self)?;
+        globals::crypto::crypto_init(self)?;
+        globals::performance::performance_init(self)?;
+        globals::runtime_object::runtime_object_init(self)?;
 
         if self.options.builtins.console {
             let console = Console::init(&mut self.context);
@@ -118,12 +124,6 @@ impl Tanxium {
         Ok(())
     }
 
-    /// Get the current event loop
-    /// This is useful if you want to add custom jobs to the event loop or run the event loop
-    pub fn get_event_loop(&self) -> Rc<dyn JobQueue> {
-        self.context.job_queue()
-    }
-
     /// The current module loader
     pub fn get_module_loader(&self) -> Rc<dyn ModuleLoader> {
         self.context.module_loader()
@@ -134,6 +134,7 @@ impl Tanxium {
         let exts = vec![DefaultScriptExtension {
             script: include_str!("./extensions/00_timers.ts"),
             transpile: true,
+            enabled: self.options.builtins.timers,
         }];
 
         for ext in exts {
@@ -175,7 +176,7 @@ impl Tanxium {
         Ok(())
     }
 
-    /// Execute a JavaScript code as a module
+    /// Execute a JavaScript code as a module. `tanxium.run_event_loop()` must be called in order to get the result of the promise.
     pub fn execute(&mut self, code: &str) -> JsResult<JsValue> {
         let src = Source::from_bytes(code.as_bytes());
         let module = Module::parse(src, None, &mut self.context)?;
@@ -214,5 +215,6 @@ impl Tanxium {
     /// Run the event loop
     pub fn run_event_loop(&mut self) {
         self.context.run_jobs();
+        self.context.clear_kept_objects();
     }
 }
