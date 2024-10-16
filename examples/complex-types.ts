@@ -20,4 +20,4 @@ const person = {
   gender: Gender.Male,
 } satisfies Person;
 
-console.log(JSON.stringify(person, null, 2));
+console.log(person);

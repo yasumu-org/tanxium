@@ -1,4 +1,3 @@
-pub mod globals;
-pub mod runtime;
+pub mod exts;
+pub mod module_loader;
 pub mod tanxium;
-pub mod typescript;

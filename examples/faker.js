@@ -1,3 +1,5 @@
+console.time('faker.js');
+
 import { faker } from 'npm:@faker-js/faker'
 
 function createRandomUser() {
@@ -14,4 +16,5 @@ function createRandomUser() {
 
 const result = createRandomUser();
 
-console.log(JSON.stringify(result, null, 2));
+console.timeEnd('faker.js');
+console.log(result);

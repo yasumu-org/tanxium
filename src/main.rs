@@ -1,101 +1,38 @@
-use boa_engine::*;
-use std::io::Write;
-use tanxium::tanxium;
+use tanxium::tanxium::{Tanxium, TanxiumOptions};
 
 fn main() {
-    let file = std::env::args().nth(1).expect("No file provided");
-    let is_typescript = file.ends_with(".ts");
-    let code = std::fs::read_to_string(file).expect("Unable to read file");
+    let future = async {
+        let cwd = std::env::current_dir().unwrap();
+        let target_file = std::env::args().nth(1).expect("missing target file");
+        let target_file = cwd.join(target_file);
+        let main_module = deno_core::ModuleSpecifier::from_file_path(target_file).unwrap();
 
-    let cwd = std::env::current_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+        let mut tanxium = Tanxium::new(TanxiumOptions {
+            main_module: main_module.clone(),
+            cwd: cwd.to_string_lossy().to_string(),
+            extensions: vec![],
+            test: true,
+            stdout: None,
+            stderr: None,
+            stdin: None,
+        })
+        .unwrap();
 
-    // Enable builtin APIs
-    let builtins = tanxium::TanxiumBuiltinsExposure {
-        crypto: true,
-        performance: true,
-        runtime: true,
-        console: true,
-        timers: true,
-        base64: true,
-    };
+        match tanxium.load_runtime_api(None).await {
+            Err(e) => eprintln!("{}", e.to_string()),
+            _ => (),
+        };
 
-    // Initialize Tanxium options
-    let options = tanxium::TanxiumOptions {
-        cwd,
-        typescript: true,
-        builtins,
-        global_object_name: "Tanxium".to_string(),
-    };
+        match tanxium.execute_main_module(&main_module).await {
+            Err(e) => eprintln!("{}", e.to_string()),
+            _ => (),
+        };
 
-    // Create a new Tanxium runtime
-    let mut tanxium = tanxium::Tanxium::new(options).unwrap();
-
-    // initialize tanxium's runtime APIs
-    tanxium.init_runtime_apis().unwrap();
-    tanxium.load_default_extensions().unwrap();
-
-    // add custom native functions
-    let ctx = &mut tanxium.context;
-
-    // strict mode
-    ctx.strict(true);
-
-    // set runtime limits if needed
-    let limits = ctx.runtime_limits_mut();
-    limits.set_loop_iteration_limit(10000);
-    limits.set_recursion_limit(1000);
-
-    ctx.register_global_builtin_callable(
-        js_string!("prompt"),
-        1,
-        NativeFunction::from_fn_ptr(|_, args, context| {
-            let src = args.get_or_undefined(0).to_string(context).unwrap();
-            let message = src.to_std_string().unwrap();
-
-            print!("{}: ", message);
-
-            std::io::stdout().flush().unwrap();
-
-            let mut input = String::new();
-
-            match std::io::stdin().read_line(&mut input) {
-                Ok(_) => Ok(JsValue::from(JsString::from(input.trim_end()))),
-                Err(e) => Err(JsError::from_native(
-                    JsNativeError::error().with_message(e.to_string()),
-                )),
-            }
-        }),
-    )
-    .expect("Failed to register prompt function");
-
-    // transpile if needed
-    let code = if is_typescript {
-        tanxium
-            .transpile(code.as_str())
-            .expect("Failed to transpile typescript")
-    } else {
-        code
-    };
-
-    // Execute the code
-    let result = tanxium.execute(code.as_str());
-
-    // Print the result
-    match result {
-        Err(e) => {
-            let trace = tanxium
-                .context
-                .stack_trace()
-                .map(|s| format!("{}", s.code_block().name().to_std_string_escaped()))
-                .collect::<Vec<String>>()
-                .join("\n");
-
-            eprintln!("{}\n{}", e, trace)
+        match tanxium.run_event_loop(false).await {
+            Err(e) => eprintln!("{}", e.to_string()),
+            _ => (),
         }
-        _ => (),
-    }
+    };
+
+    tanxium::tanxium::run_current_thread(future);
 }
