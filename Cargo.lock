@@ -5577,7 +5577,7 @@ dependencies = [
 
 [[package]]
 name = "tanxium"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "deno_ast",
  "deno_core",
