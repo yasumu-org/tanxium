@@ -4,6 +4,8 @@ import {
     op_tanxium_version
 } from 'ext:core/ops';
 
+let TanxiumRuntimeData = {};
+
 // Define Tanxium global object
 const Tanxium = Object.assign({}, Deno, {
     version: {
@@ -18,7 +20,30 @@ const Tanxium = Object.assign({}, Deno, {
     },
     ulid() {
         return op_generate_ulid();
-    }
+    },
+    getRuntimeDataString() {
+        return JSON.stringify(Tanxium.getRuntimeData());
+    },
+    getRuntimeData() {
+        const data = TanxiumRuntimeData;
+
+        if (data === undefined) {
+            const data = TanxiumRuntimeData = {};
+            return data;
+        }
+
+        return data;
+    },
+    setRuntimeData(value) {
+        if (!value || typeof value !== 'object') {
+            throw new TypeError('Invalid runtime data, expected an object');
+        }
+
+        TanxiumRuntimeData = value;
+    },
+    clearRuntimeData() {
+        TanxiumRuntimeData = {};
+    },
 })
 
 if (typeof 'process' !== 'undefined' && 'versions' in process) {

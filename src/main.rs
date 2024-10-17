@@ -1,4 +1,4 @@
-use tanxium::tanxium::{Tanxium, TanxiumOptions};
+use tanxium::tanxium::{run_current_thread, Tanxium, TanxiumOptions};
 
 fn main() {
     let future = async {
@@ -7,6 +7,7 @@ fn main() {
         let target_file = cwd.join(target_file);
         let main_module = deno_core::ModuleSpecifier::from_file_path(target_file).unwrap();
 
+        // Create a new Tanxium runtime instance
         let mut tanxium = Tanxium::new(TanxiumOptions {
             main_module: main_module.clone(),
             cwd: cwd.to_string_lossy().to_string(),
@@ -18,21 +19,38 @@ fn main() {
         })
         .unwrap();
 
+        // load runtime apis
         match tanxium.load_runtime_api(None).await {
             Err(e) => eprintln!("{}", e.to_string()),
             _ => (),
         };
 
+        // set runtime data
+        let rt_data = r#"{ "foo": "bar" }"#.to_string();
+
+        match tanxium.set_runtime_data(rt_data) {
+            Err(e) => eprintln!("{}", e.to_string()),
+            _ => (),
+        }
+
+        // run main module
         match tanxium.execute_main_module(&main_module).await {
             Err(e) => eprintln!("{}", e.to_string()),
             _ => (),
         };
 
+        // run event loop
         match tanxium.run_event_loop(false).await {
             Err(e) => eprintln!("{}", e.to_string()),
             _ => (),
         }
+
+        // get runtime data
+        match tanxium.get_runtime_data() {
+            Err(e) => eprintln!("{}", e.to_string()),
+            Ok(data) => println!("Runtime Data:\n{}", data),
+        };
     };
 
-    tanxium::tanxium::run_current_thread(future);
+    run_current_thread(future);
 }
