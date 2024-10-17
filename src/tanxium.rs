@@ -1,7 +1,7 @@
 use std::{fs::File, rc::Rc, sync::Arc, time::Duration};
 
 use crate::{exts::extensions::TanxiumExtension, module_loader::TanxiumModuleLoader};
-use deno_core::{Extension, ModuleSpecifier};
+use deno_core::{Extension, ModuleCodeString, ModuleSpecifier};
 use deno_runtime::{
     deno_fs::RealFs,
     deno_io::{Stdio, StdioPipe},
@@ -144,6 +144,46 @@ impl Tanxium {
         }
 
         Ok(())
+    }
+
+    pub fn set_runtime_data(&mut self, data: String) -> Result<String, deno_core::error::AnyError> {
+        let code_data = format!("Tanxium.setRuntimeData({});", data);
+        let code = ModuleCodeString::from(code_data);
+
+        let result = self.runtime.execute_script("<anonymous>", code)?;
+
+        let scope = &mut self.runtime.js_runtime.handle_scope();
+        let value = result.open(scope);
+        let val = value.to_rust_string_lossy(scope);
+
+        Ok(val)
+    }
+
+    pub fn get_runtime_data(&mut self) -> Result<String, deno_core::error::AnyError> {
+        let result = self.runtime.execute_script(
+            "<anonymous>",
+            ModuleCodeString::from_static("Tanxium.getRuntimeDataString()"),
+        )?;
+
+        let scope = &mut self.runtime.js_runtime.handle_scope();
+        let value = result.open(scope);
+        let val = value.to_rust_string_lossy(scope);
+
+        Ok(val)
+    }
+
+    pub async fn execute_main_module_code(
+        &mut self,
+        specifier: &ModuleSpecifier,
+        code: String,
+    ) -> Result<(), deno_core::error::AnyError> {
+        let result = self
+            .runtime
+            .js_runtime
+            .load_main_es_module_from_code(specifier, code)
+            .await?;
+
+        self.runtime.js_runtime.mod_evaluate(result).await
     }
 
     pub async fn execute_main_module(
