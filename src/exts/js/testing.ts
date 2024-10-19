@@ -14,11 +14,20 @@ class AssertionError extends Error {
   }
 
   getDiff(indent = 0) {
-    const expected = `\x1b[31m- ${this.data.expected}\x1b[0m`;
-    const actual = `\x1b[32m+ ${this.data.actual}\x1b[0m`;
+    const { expected, actual } = this.data;
     const idn = " ".repeat(indent);
+    const formattedExpected = `\x1b[31m- Expected: ${JSON.stringify(
+      expected,
+      null,
+      2
+    )}\x1b[0m`;
+    const formattedActual = `\x1b[32m+ Actual: ${JSON.stringify(
+      actual,
+      null,
+      2
+    )}\x1b[0m`;
 
-    return `${expected}\n${idn}${actual}`;
+    return `${formattedExpected}\n${idn}${formattedActual}`;
   }
 }
 
