@@ -1,3 +1,4 @@
+use deno_runtime::WorkerExecutionMode;
 use tanxium::tanxium::{run_current_thread, Tanxium, TanxiumOptions};
 
 fn main() {
@@ -12,10 +13,7 @@ fn main() {
             main_module: main_module.clone(),
             cwd: cwd.to_string_lossy().to_string(),
             extensions: vec![],
-            test: true,
-            stdout: None,
-            stderr: None,
-            stdin: None,
+            mode: WorkerExecutionMode::None,
         })
         .unwrap();
 
@@ -24,14 +22,6 @@ fn main() {
             Err(e) => eprintln!("{}", e.to_string()),
             _ => (),
         };
-
-        // set runtime data
-        let rt_data = r#"{ "foo": "bar" }"#.to_string();
-
-        match tanxium.set_runtime_data(rt_data) {
-            Err(e) => eprintln!("{}", e.to_string()),
-            _ => (),
-        }
 
         // run main module
         match tanxium.execute_main_module(&main_module).await {
@@ -44,12 +34,6 @@ fn main() {
             Err(e) => eprintln!("{}", e.to_string()),
             _ => (),
         }
-
-        // get runtime data
-        match tanxium.get_runtime_data() {
-            Err(e) => eprintln!("{}", e.to_string()),
-            Ok(data) => println!("Runtime Data:\n{}", data),
-        };
     };
 
     run_current_thread(future);

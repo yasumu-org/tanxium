@@ -1,0 +1,6 @@
+{
+  "fmt": {
+    "exclude": ["target/**", ".yasumu_modules/**"],
+    "include": ["src/exts/js/**", "examples/**"]
+  }
+}

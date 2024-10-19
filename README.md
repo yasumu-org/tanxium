@@ -1,6 +1,7 @@
 # Tanxium
 
-Embeddable JavaScript/TypeScript runtime for [Yasumu](https://github.com/yasumu-org/yasumu) powered by Deno.
+Embeddable JavaScript/TypeScript runtime for
+[Yasumu](https://github.com/yasumu-org/yasumu) powered by Deno.
 
 > [!CAUTION]
 > This project is still in development and not ready for production use.
@@ -13,7 +14,8 @@ cargo add tanxium
 
 ## Example
 
-This is an example of how to use Tanxium to run JavaScript/TypeScript code. You can also find this example in the [`examples`](./examples/) directory.
+This is an example of how to use Tanxium to run JavaScript/TypeScript code. You
+can also find this example in the [`examples`](./examples/) directory.
 
 ```rust
 use tanxium::tanxium::{run_current_thread, Tanxium, TanxiumOptions};

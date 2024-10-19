@@ -1,13 +1,16 @@
 use std::{borrow::Cow, path::Path};
 
-use deno_ast::{parse_module, EmitOptions, ImportsNotUsedAsValues, MediaType, ModuleSpecifier, ParseParams, SourceMapOption, TranspileOptions};
+use crate::utils::typescript;
 use deno_core::{
-    anyhow::Context, error::generic_error, futures::FutureExt, resolve_import, ModuleLoadResponse, ModuleLoader, ModuleSource, ModuleSourceCode, ModuleType, RequestedModuleType
+    anyhow::Context, error::generic_error, futures::FutureExt, resolve_import, FastString,
+    ModuleLoadResponse, ModuleLoader, ModuleSource, ModuleSourceCode, ModuleType,
+    RequestedModuleType,
 };
 
 pub const NPM_LOADER_CDN: &str = "https://cdn.jsdelivr.net/npm/";
 
-const TRANSPILE_EXTENSIONS: [&str; 7] = [".ts", ".cts", ".mts", ".tsx", ".jsx", ".ctsx", ".mtsx"];
+pub const TRANSPILE_EXTENSIONS: [&str; 7] =
+    [".ts", ".cts", ".mts", ".tsx", ".jsx", ".ctsx", ".mtsx"];
 const TRANSPILE_REMOTE_EXTENSIONS: [&str; 1] = ["application/typescript"];
 const REMOTE_MODULES: [&str; 3] = ["http://", "https://", "npm:"];
 
@@ -20,21 +23,25 @@ pub struct TanxiumModuleLoader {
 
 impl TanxiumModuleLoader {
     pub fn new(cwd: String) -> Self {
-        Self {
-            cwd,
-        }
+        Self { cwd }
     }
 
     pub fn is_remote_module(&self, specifier: &str) -> bool {
-        REMOTE_MODULES.iter().any(|prefix| specifier.starts_with(prefix))
+        REMOTE_MODULES
+            .iter()
+            .any(|prefix| specifier.starts_with(prefix))
     }
 
     pub fn should_transpile(&self, specifier: &str) -> bool {
-        TRANSPILE_EXTENSIONS.iter().any(|ext| specifier.ends_with(ext))
+        TRANSPILE_EXTENSIONS
+            .iter()
+            .any(|ext| specifier.ends_with(ext))
     }
 
     pub fn should_transpile_remote(&self, specifier: &str) -> bool {
-        TRANSPILE_REMOTE_EXTENSIONS.iter().any(|ext| specifier.eq_ignore_ascii_case(ext))
+        TRANSPILE_REMOTE_EXTENSIONS
+            .iter()
+            .any(|ext| specifier.eq_ignore_ascii_case(ext))
     }
 
     pub fn hash_module_specifier(&self, specifier: &str) -> String {
@@ -73,7 +80,7 @@ impl ModuleLoader for TanxiumModuleLoader {
             let mod_str = module_specifier.as_str();
             let is_remote_module = REMOTE_MODULES.iter().any(|prefix| mod_str.starts_with(prefix));
 
-            if is_remote_module {    
+            if is_remote_module {
                 // Create the cache directory if it doesn't exist
                 tokio::fs::create_dir_all(format!("{}/.yasumu_modules", cwd))
                 .await
@@ -112,47 +119,22 @@ impl ModuleLoader for TanxiumModuleLoader {
                         },
                         None => false,
                     };
-    
+
                     let code = res.text().await.with_context(|| {
                         format!("Failed to load {}", module_specifier.as_str())
                     })?;
-    
+
                     let code = if is_typescript {
-                        let parsed = parse_module(ParseParams {
-                            specifier: ModuleSpecifier::parse(module_specifier.as_str()).unwrap(),
-                            text: code.into(),
-                            media_type: MediaType::TypeScript,
-                            capture_tokens: false,
-                            scope_analysis: false,
-                            maybe_syntax: None,
-                        })?;
-
-                        let transpiled_source = parsed
-                            .transpile(
-                                &TranspileOptions {
-                                    imports_not_used_as_values: ImportsNotUsedAsValues::Remove,
-                                    ..Default::default()
-                                },
-                                &EmitOptions {
-                                    source_map: SourceMapOption::None,
-                                    ..Default::default()
-                                },
-                            )
-                            .unwrap()
-                            .into_source();
-
-                        let transpiled = String::from_utf8(transpiled_source.source).with_context(|| {
-                            format!("Failed to transpile {}", module_specifier.as_str())
-                        })?;
+                        let transpiled = typescript::transpile_typescript(module_specifier.clone(), code.as_str())?;
                         transpiled
                     } else {
                         code
                     };
-    
+
                     tokio::fs::write(cache_path, code.as_bytes()).await.unwrap_or(());
-    
+
                     let code_bytes = code.into_bytes().into_boxed_slice().into();
-    
+
                     let module = ModuleSource::new(ModuleType::JavaScript, ModuleSourceCode::Bytes(code_bytes), &module_specifier, None);
 
                     return Ok(module);
@@ -196,22 +178,20 @@ impl ModuleLoader for TanxiumModuleLoader {
                 return Err(generic_error("Attempted to load JSON module without specifying \"type\": \"json\" attribute in the import statement."));
             }
 
-            let code = tokio::fs::read(path).await.with_context(|| {
+            let code = tokio::fs::read_to_string(path).await.with_context(|| {
                 format!("Failed to load {}", module_specifier.as_str())
             })?;
 
             let code = if module_type == ModuleType::Other(ts_mod_type) {
                 module_type = ModuleType::JavaScript;
-                transpile_typescript(String::from_utf8(code).with_context(|| {
-                    format!("Failed to load {}", module_specifier.as_str())
-                })?, module_specifier.as_str().to_string())?.as_bytes().to_vec()
+                typescript::transpile_typescript(module_specifier.clone(), code.as_str())?
             } else {
                 code
             };
 
             let module = ModuleSource::new(
                 module_type,
-                ModuleSourceCode::Bytes(code.into_boxed_slice().into()),
+                ModuleSourceCode::String(FastString::from(code)),
                 &module_specifier,
                 None,
             );
@@ -222,35 +202,4 @@ impl ModuleLoader for TanxiumModuleLoader {
 
         ModuleLoadResponse::Async(fut)
     }
-}
-
-fn transpile_typescript(code: String, module_specifier: String) -> Result<String, deno_core::error::AnyError> {
-    let parsed = parse_module(ParseParams {
-        specifier: ModuleSpecifier::parse(module_specifier.as_str()).unwrap(),
-        text: code.into(),
-        media_type: MediaType::TypeScript,
-        capture_tokens: false,
-        scope_analysis: false,
-        maybe_syntax: None,
-    })?;
-
-    let transpiled_source = parsed
-        .transpile(
-            &TranspileOptions {
-                imports_not_used_as_values: ImportsNotUsedAsValues::Remove,
-                ..Default::default()
-            },
-            &EmitOptions {
-                source_map: SourceMapOption::None,
-                ..Default::default()
-            },
-        )
-        .unwrap()
-        .into_source();
-
-    let transpiled = String::from_utf8(transpiled_source.source).with_context(|| {
-        format!("Failed to transpile {}", module_specifier.as_str())
-    })?;
-
-    Ok(transpiled)
 }
