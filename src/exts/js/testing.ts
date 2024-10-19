@@ -365,24 +365,20 @@ class Assertion {
 }
 
 function test(description: string, fn: () => void) {
-  const startTime = new Date();
+  const startTime = performance.now();
   try {
     fn();
-    const endTime = new Date();
+    const endTime = performance.now();
     console.log(
-      `\n✅ [${startTime.toLocaleTimeString()}] ${description} - Passed`
+      `\n✅ [${new Date().toLocaleTimeString()}] ${description} - Passed`
     );
-    console.log(
-      `   Execution Time: ${endTime.getTime() - startTime.getTime()}ms`
-    );
+    console.log(`   Execution Time: ${endTime - startTime}ms`);
   } catch (error: any) {
-    const endTime = new Date();
+    const endTime = performance.now();
     console.log(
-      `\n❌ [${startTime.toLocaleTimeString()}] ${description} - Failed`
+      `\n❌ [${new Date().toLocaleTimeString()}] ${description} - Failed`
     );
-    console.log(
-      `   Execution Time: ${endTime.getTime() - startTime.getTime()}ms`
-    );
+    console.log(`   Execution Time: ${endTime - startTime}ms`);
     if (error instanceof AssertionError) {
       console.log(`   Error Type: Assertion Failure`);
       console.log(`   ${error.message}`);
