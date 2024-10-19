@@ -43,7 +43,8 @@ class Assertion {
   }
 
   evaluate(condition, errorMessage, data) {
-    if (this.invert ? condition : !condition) {
+    const shouldThrow = this.invert ? condition : !condition;
+    if (shouldThrow) {
       throw new AssertionError(errorMessage, data);
     }
   }
@@ -102,6 +103,28 @@ class Assertion {
         actual: this.value,
       });
     }
+  }
+
+  toBeNaN() {
+    this.evaluate(
+      Number.isNaN(this.value),
+      `Expected ${this.value} to be NaN`,
+      {
+        expected: NaN,
+        actual: this.value,
+      }
+    );
+  }
+
+  toBeDefined() {
+    this.evaluate(
+      this.value !== undefined,
+      `Expected ${this.value} to be defined`,
+      {
+        expected: "defined value",
+        actual: this.value,
+      }
+    );
   }
 
   toBeUndefined() {
