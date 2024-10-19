@@ -1,15 +1,19 @@
-use std::{fs::File, rc::Rc, sync::Arc, time::Duration};
+use std::{rc::Rc, sync::Arc, time::Duration};
 
-use crate::{exts::extensions::TanxiumExtension, module_loader::TanxiumModuleLoader};
+use crate::{
+    exts::extensions::TanxiumExtension,
+    module_loader::{TanxiumModuleLoader, TRANSPILE_EXTENSIONS},
+};
 use deno_core::{Extension, ModuleCodeString, ModuleSpecifier};
 use deno_runtime::{
     deno_fs::RealFs,
-    deno_io::{Stdio, StdioPipe},
     deno_permissions::PermissionsContainer,
     permissions::RuntimePermissionDescriptorParser,
     worker::{MainWorker, WorkerOptions, WorkerServiceOptions},
     BootstrapOptions,
 };
+
+pub use deno_runtime::WorkerExecutionMode;
 
 pub struct TanxiumExtensionEntry {
     /// The module specifier of the extension.
@@ -24,13 +28,7 @@ pub struct TanxiumOptions {
     /// The main module specifier.
     pub main_module: ModuleSpecifier,
     /// Enable test mode.
-    pub test: bool,
-    /// The stdout file
-    pub stdout: Option<File>,
-    /// The stderr file
-    pub stderr: Option<File>,
-    /// The stdin file
-    pub stdin: Option<File>,
+    pub mode: WorkerExecutionMode,
     /// The extensions to include.
     pub extensions: Vec<Extension>,
 }
@@ -48,21 +46,6 @@ impl Tanxium {
         let main_module = options.main_module.clone();
         let fs = Arc::new(RealFs);
         let permission_desc_parser = Arc::new(RuntimePermissionDescriptorParser::new(fs.clone()));
-
-        let stdio = Stdio {
-            stderr: match options.stderr {
-                Some(file) => StdioPipe::file(file),
-                None => StdioPipe::inherit(),
-            },
-            stdin: match options.stdin {
-                Some(file) => StdioPipe::file(file),
-                None => StdioPipe::inherit(),
-            },
-            stdout: match options.stdout {
-                Some(file) => StdioPipe::file(file),
-                None => StdioPipe::inherit(),
-            },
-        };
 
         let permissions = PermissionsContainer::allow_all(permission_desc_parser);
 
@@ -85,10 +68,9 @@ impl Tanxium {
             WorkerOptions {
                 extensions: vec![TanxiumExtension::init_ops()],
                 skip_op_registration: false,
-                stdio,
                 bootstrap: BootstrapOptions {
                     user_agent: format!("Tanxium/{}", env!("CARGO_PKG_VERSION")),
-                    enable_testing_features: options.test,
+                    mode: options.mode,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -97,13 +79,8 @@ impl Tanxium {
 
         Ok(Tanxium {
             options: TanxiumOptions {
-                cwd: options.cwd,
-                main_module: options.main_module,
                 extensions: vec![],
-                test: options.test,
-                stdout: None,
-                stderr: None,
-                stdin: None,
+                ..options
             },
             runtime: worker,
         })
@@ -113,44 +90,48 @@ impl Tanxium {
         &mut self,
         ext_entries: Option<Vec<TanxiumExtensionEntry>>,
     ) -> Result<(), deno_core::error::AnyError> {
-        let js_runtime = &mut self.runtime.js_runtime;
-
-        let mut modules = vec![TanxiumExtensionEntry {
-            specifier: ModuleSpecifier::parse("ext:tanxium/core")?,
-            code: include_str!("./exts/js/tanxium.js"),
+        let modules = vec![TanxiumExtensionEntry {
+            specifier: ModuleSpecifier::parse("ext:tanxium/core.ts")?,
+            code: include_str!("./exts/js/tanxium.ts"),
         }];
 
-        if self.options.test {
-            modules.push(TanxiumExtensionEntry {
-                specifier: ModuleSpecifier::parse("ext:tanxium/testing")?,
-                code: include_str!("./exts/js/testing.js"),
-            });
-        }
+        // if self.options.mode {
+        //     modules.push(TanxiumExtensionEntry {
+        //         specifier: ModuleSpecifier::parse("ext:tanxium/testing.ts")?,
+        //         code: include_str!("./exts/js/testing.ts"),
+        //     });
+        // }
 
         for module in modules {
-            let module = js_runtime
-                .load_side_es_module_from_code(&module.specifier, module.code)
+            self.load_side_es_module_from_code(&module.specifier, module.code.to_string())
                 .await?;
-            js_runtime.mod_evaluate(module).await?;
         }
 
         if ext_entries.is_some() {
             for entry in ext_entries.unwrap() {
-                let module = js_runtime
-                    .load_side_es_module_from_code(&entry.specifier, entry.code)
+                self.load_side_es_module_from_code(&entry.specifier, entry.code.to_string())
                     .await?;
-                js_runtime.mod_evaluate(module).await?;
             }
         }
 
         Ok(())
     }
 
+    pub fn evaluate_script(
+        &mut self,
+        script_name: &'static str,
+        source_code: String,
+    ) -> Result<deno_core::v8::Global<deno_core::v8::Value>, deno_core::error::AnyError> {
+        let specifier = ModuleSpecifier::parse(script_name)?;
+        let maybe_transpiled = self.transpile_if_needed(specifier, source_code.as_str())?;
+        let final_src_code = ModuleCodeString::from(maybe_transpiled);
+
+        self.runtime.execute_script(script_name, final_src_code)
+    }
+
     pub fn set_runtime_data(&mut self, data: String) -> Result<String, deno_core::error::AnyError> {
         let code_data = format!("Tanxium.setRuntimeData({});", data);
-        let code = ModuleCodeString::from(code_data);
-
-        let result = self.runtime.execute_script("<anonymous>", code)?;
+        let result = self.evaluate_script("file://tanxium-embedded/runtime_data.js", code_data)?;
 
         let scope = &mut self.runtime.js_runtime.handle_scope();
         let value = result.open(scope);
@@ -161,7 +142,7 @@ impl Tanxium {
 
     pub fn get_runtime_data(&mut self) -> Result<String, deno_core::error::AnyError> {
         let result = self.runtime.execute_script(
-            "<anonymous>",
+            "file://tanxium-embedded/runtime_data.js",
             ModuleCodeString::from_static("Tanxium.getRuntimeDataString()"),
         )?;
 
@@ -172,6 +153,36 @@ impl Tanxium {
         Ok(val)
     }
 
+    pub async fn load_side_es_module(
+        &mut self,
+        specifier: &ModuleSpecifier,
+    ) -> Result<(), deno_core::error::AnyError> {
+        let result = self
+            .runtime
+            .js_runtime
+            .load_side_es_module(specifier)
+            .await?;
+
+        self.runtime.js_runtime.mod_evaluate(result).await
+    }
+
+    pub async fn load_side_es_module_from_code(
+        &mut self,
+        specifier: &ModuleSpecifier,
+        code: String,
+    ) -> Result<(), deno_core::error::AnyError> {
+        let result = self
+            .runtime
+            .js_runtime
+            .load_side_es_module_from_code(
+                specifier,
+                self.transpile_if_needed(specifier.clone(), code.as_str())?,
+            )
+            .await?;
+
+        self.runtime.js_runtime.mod_evaluate(result).await
+    }
+
     pub async fn execute_main_module_code(
         &mut self,
         specifier: &ModuleSpecifier,
@@ -180,7 +191,10 @@ impl Tanxium {
         let result = self
             .runtime
             .js_runtime
-            .load_main_es_module_from_code(specifier, code)
+            .load_main_es_module_from_code(
+                specifier,
+                self.transpile_if_needed(specifier.clone(), code.as_str())?,
+            )
             .await?;
 
         self.runtime.js_runtime.mod_evaluate(result).await
@@ -205,6 +219,21 @@ impl Tanxium {
         duration: Duration,
     ) -> Result<(), deno_core::error::AnyError> {
         self.runtime.run_up_to_duration(duration).await
+    }
+
+    fn transpile_if_needed(
+        &self,
+        specifier: ModuleSpecifier,
+        code: &str,
+    ) -> Result<String, deno_core::error::AnyError> {
+        if TRANSPILE_EXTENSIONS
+            .iter()
+            .any(|ext| specifier.path().ends_with(ext))
+        {
+            return crate::utils::typescript::transpile_typescript(specifier, code);
+        }
+
+        Ok(code.to_string())
     }
 }
 

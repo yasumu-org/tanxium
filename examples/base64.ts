@@ -1,8 +1,8 @@
 // @ts-nocheck
-const message = 'Hello, World!';
+const message = "Hello, World!";
 
 const encoded = btoa(message);
-console.log('btoa', encoded);
+console.log("btoa", encoded);
 
 const decoded = atob(encoded);
-console.log('atob', decoded);
+console.log("atob", decoded);
