@@ -342,16 +342,33 @@ class Assertion {
 }
 
 function test(description: string, fn: () => void) {
+  const startTime = new Date();
   try {
     fn();
-    console.log(`✅ ${description}`);
+    const endTime = new Date();
+    console.log(
+      `\n✅ [${startTime.toLocaleTimeString()}] ${description} - Passed`
+    );
+    console.log(
+      `   Execution Time: ${endTime.getTime() - startTime.getTime()}ms`
+    );
   } catch (error: any) {
+    const endTime = new Date();
+    console.log(
+      `\n❌ [${startTime.toLocaleTimeString()}] ${description} - Failed`
+    );
+    console.log(
+      `   Execution Time: ${endTime.getTime() - startTime.getTime()}ms`
+    );
     if (error instanceof AssertionError) {
-      console.log(
-        `❌ ${description}\n   ${error.message}\n   ${error.getDiff(3)}`
-      );
+      console.log(`   Error Type: Assertion Failure`);
+      console.log(`   ${error.message}`);
+      console.log(`   Difference:\n${error.getDiff(3)}`);
     } else {
-      console.log(`❌ ${description}\n  ${error.stack}`);
+      console.log(`   Error Type: Unexpected Error`);
+      console.log(`   Message: ${error.message}`);
+      console.log(`   Stack Trace:`);
+      console.log(`   ${error.stack}`);
     }
   }
 }
