@@ -25,13 +25,17 @@ class Assertion {
         return new Assertion(this.value, this.expectation, !this.invert);
     }
 
-    toBe(expected) {
-        if (this.invert ? this.value === expected : this.value !== expected) {
-            throw new AssertionError(`Expected ${this.value} to be ${expected}`, {
-                expected,
-                actual: this.value,
-            });
+    evaluate(condition, errorMessage, data) {
+        if (this.invert ? condition : !condition) {
+            throw new AssertionError(errorMessage, data);
         }
+    }
+
+    toBe(expected) {
+        this.evaluate( this.value === expected, `Expected ${this.value} to be ${expected}`, {
+            expected,
+            actual: this.value,
+        })
     }
 
     toEqual(expected) {
