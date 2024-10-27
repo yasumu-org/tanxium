@@ -1,5 +1,4 @@
-use deno_core::extension;
-use deno_core::op2;
+use deno_runtime::deno_core::{extension, op2};
 use ulid::Ulid;
 
 pub const TANXIUM_VERSION: &str = env!("CARGO_PKG_VERSION");

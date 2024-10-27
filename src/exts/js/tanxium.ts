@@ -1,9 +1,11 @@
+/// <reference path="./types.d.ts" />
+
 import {
   op_generate_nanoid,
   op_generate_ulid,
   op_tanxium_version,
-} from "ext:core/ops";
-import process from "node:process";
+} from 'ext:core/ops';
+import process from 'node:process';
 
 let TanxiumRuntimeData: Record<string, unknown> = {};
 
@@ -36,8 +38,8 @@ const Tanxium = Object.assign({}, Deno, {
     return data;
   },
   setRuntimeData(value: Record<string, unknown>) {
-    if (!value || typeof value !== "object") {
-      throw new TypeError("Invalid runtime data, expected an object");
+    if (!value || typeof value !== 'object') {
+      throw new TypeError('Invalid runtime data, expected an object');
     }
 
     TanxiumRuntimeData = value;
@@ -47,12 +49,12 @@ const Tanxium = Object.assign({}, Deno, {
   },
 });
 
-if (typeof "process" !== "undefined" && "versions" in process) {
+if (typeof 'process' !== 'undefined' && 'versions' in process) {
   process.versions.tanxium = Tanxium.version.tanxium;
 }
 
 // Define Tanxium global object
-Object.defineProperty(globalThis, "Tanxium", {
+Object.defineProperty(globalThis, 'Tanxium', {
   value: Tanxium,
   writable: false,
   configurable: false,

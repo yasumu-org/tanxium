@@ -4,16 +4,14 @@ use crate::{
     exts::extensions::TanxiumExtension,
     module_loader::{TanxiumModuleLoader, TRANSPILE_EXTENSIONS},
 };
-use deno_core::{Extension, ModuleCodeString, ModuleSpecifier};
 use deno_runtime::{
+    deno_core::{Extension, ModuleCodeString, ModuleSpecifier},
     deno_fs::RealFs,
     deno_permissions::PermissionsContainer,
     permissions::RuntimePermissionDescriptorParser,
     worker::{MainWorker, WorkerOptions, WorkerServiceOptions},
-    BootstrapOptions,
+    BootstrapOptions, WorkerExecutionMode,
 };
-
-pub use deno_runtime::WorkerExecutionMode;
 
 pub struct TanxiumExtensionEntry {
     /// The module specifier of the extension.
@@ -90,17 +88,16 @@ impl Tanxium {
         &mut self,
         ext_entries: Option<Vec<TanxiumExtensionEntry>>,
     ) -> Result<(), deno_core::error::AnyError> {
-        let modules = vec![TanxiumExtensionEntry {
-            specifier: ModuleSpecifier::parse("ext:tanxium/core.ts")?,
-            code: include_str!("./exts/js/tanxium.ts"),
-        }];
-
-        // if self.options.mode {
-        //     modules.push(TanxiumExtensionEntry {
-        //         specifier: ModuleSpecifier::parse("ext:tanxium/testing.ts")?,
-        //         code: include_str!("./exts/js/testing.ts"),
-        //     });
-        // }
+        let modules = vec![
+            TanxiumExtensionEntry {
+                specifier: ModuleSpecifier::parse("ext:tanxium/core.ts")?,
+                code: include_str!("./exts/js/tanxium.ts"),
+            },
+            TanxiumExtensionEntry {
+                specifier: ModuleSpecifier::parse("ext:tanxium/testing.ts")?,
+                code: include_str!("./exts/js/testing.ts"),
+            },
+        ];
 
         for module in modules {
             self.load_side_es_module_from_code(&module.specifier, module.code.to_string())
@@ -221,7 +218,7 @@ impl Tanxium {
         self.runtime.run_up_to_duration(duration).await
     }
 
-    fn transpile_if_needed(
+    pub fn transpile_if_needed(
         &self,
         specifier: ModuleSpecifier,
         code: &str,
