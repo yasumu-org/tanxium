@@ -6,7 +6,7 @@ use deno_ast::{
 pub fn transpile_typescript(
     specifier: ModuleSpecifier,
     code: &str,
-) -> Result<String, deno_core::error::AnyError> {
+) -> Result<String, deno_runtime::deno_core::error::AnyError> {
     let parsed = parse_module(ParseParams {
         specifier,
         text: code.into(),
@@ -29,6 +29,8 @@ pub fn transpile_typescript(
         )?
         .into_source();
 
-    String::from_utf8(transpiled_source.source)
-        .map_err(|e| deno_core::error::generic_error(e.to_string()))
+    let emitted = String::from_utf8(transpiled_source.source)
+        .map_err(|e| deno_runtime::deno_core::error::generic_error(e.to_string()))?;
+
+    Ok(emitted)
 }

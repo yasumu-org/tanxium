@@ -20,6 +20,4 @@ const person = {
   gender: Gender.Male,
 } satisfies Person;
 
-throw new Error('This is a test error');
-
 console.log(person);

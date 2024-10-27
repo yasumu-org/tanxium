@@ -1,7 +1,7 @@
 use std::{borrow::Cow, path::Path};
 
 use crate::utils::typescript;
-use deno_core::{
+use deno_runtime::deno_core::{
     anyhow::Context, error::generic_error, futures::FutureExt, resolve_import, FastString,
     ModuleLoadResponse, ModuleLoader, ModuleSource, ModuleSourceCode, ModuleType,
     RequestedModuleType,
@@ -60,18 +60,19 @@ impl ModuleLoader for TanxiumModuleLoader {
         &self,
         specifier: &str,
         referrer: &str,
-        _kind: deno_core::ResolutionKind,
-    ) -> Result<deno_core::ModuleSpecifier, deno_core::anyhow::Error> {
+        _kind: deno_runtime::deno_core::ResolutionKind,
+    ) -> Result<deno_runtime::deno_core::ModuleSpecifier, deno_runtime::deno_core::anyhow::Error>
+    {
         Ok(resolve_import(specifier, referrer)?)
     }
 
     fn load(
         &self,
-        module_specifier: &deno_core::ModuleSpecifier,
-        _maybe_referrer: Option<&deno_core::ModuleSpecifier>,
+        module_specifier: &deno_runtime::deno_core::ModuleSpecifier,
+        _maybe_referrer: Option<&deno_runtime::deno_core::ModuleSpecifier>,
         _is_dyn_import: bool,
-        requested_module_type: deno_core::RequestedModuleType,
-    ) -> deno_core::ModuleLoadResponse {
+        requested_module_type: deno_runtime::deno_core::RequestedModuleType,
+    ) -> deno_runtime::deno_core::ModuleLoadResponse {
         let module_specifier = module_specifier.clone();
         let cache_path = self.get_module_cache_path(module_specifier.as_str());
         let cwd = self.cwd.clone();

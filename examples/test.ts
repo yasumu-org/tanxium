@@ -1,5 +1,19 @@
-import { strictEqual } from 'node:assert/strict';
+test('Add two numbers', () => {
+  expect(1 + 2).toBe(3);
+});
 
-Deno.test('Add two numbers', () => {
-  strictEqual(1 + 2, 3);
+test('Sub two numbers', () => {
+  expect(1 - 2).toBe(4);
+});
+
+function danger() {
+  throw new Error('Danger!');
+}
+
+test('Calls a function', () => {
+  danger();
+});
+
+test('Calls a dangerous function', () => {
+  expect(danger).toThrow();
 });

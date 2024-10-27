@@ -1,3 +1,7 @@
+/// <reference path="./types.d.ts" />
+
+// deno-lint-ignore-file no-explicit-any
+
 interface AssertionData {
   expected: any;
   actual: any;
@@ -8,26 +12,32 @@ class AssertionError extends Error {
 
   constructor(message: string, data: AssertionData) {
     super(message);
-    this.name = "AssertionError";
+    this.name = 'AssertionError';
     this.data = data;
     Error.captureStackTrace(this, AssertionError);
   }
 
   getDiff(indent = 0) {
     const { expected, actual } = this.data;
-    const idn = " ".repeat(indent);
-    const formattedExpected = `\x1b[31m- Expected: ${JSON.stringify(
+    const idn = ' '.repeat(indent);
+    const formattedExpected = `${RED}- Expected: ${JSON.stringify(
       expected,
       null,
       2
-    )}\x1b[0m`;
-    const formattedActual = `\x1b[32m+ Actual: ${JSON.stringify(
+    )}${RESET}`;
+    const formattedActual = `${GREEN}+ Actual: ${JSON.stringify(
       actual,
       null,
       2
-    )}\x1b[0m`;
+    )}${RESET}`;
 
     return `${formattedExpected}\n${idn}${formattedActual}`;
+  }
+
+  asString() {
+    return `\n${this.getDiff(0)}\n\n${GRAY}${
+      this.stack || this.message
+    }${RESET}`;
   }
 }
 
@@ -42,7 +52,7 @@ class Assertion {
     return new Assertion(this.value, this.expectation, !this.invert);
   }
 
-  evaluate(condition, errorMessage, data) {
+  evaluate(condition: boolean, errorMessage: string, data: any) {
     const shouldThrow = this.invert ? condition : !condition;
     if (shouldThrow) {
       throw new AssertionError(errorMessage, data);
@@ -121,7 +131,7 @@ class Assertion {
       this.value !== undefined,
       `Expected ${this.value} to be defined`,
       {
-        expected: "defined value",
+        expected: 'defined value',
         actual: this.value,
       }
     );
@@ -161,16 +171,16 @@ class Assertion {
   }
 
   toThrow() {
-    let error = null;
+    let error: Error | null = null;
 
     try {
       this.value();
     } catch (e) {
-      error = e;
+      error = e as Error;
     }
 
-    this.evaluate(error, `Expected function to throw an error`, {
-      expected: "Error",
+    this.evaluate(!!error, `Expected function to throw an error`, {
+      expected: 'Error',
       actual: error,
     });
   }
@@ -364,30 +374,43 @@ class Assertion {
   }
 }
 
+const SUCCESS_SYMBOL = '\u2714';
+const ERROR_SYMBOL = '\u2718';
+const RESET = '\x1b[0m';
+const GRAY = '\x1b[90m';
+const RED = '\x1b[31m';
+const GREEN = '\x1b[32m';
+const CYAN = '\x1b[36m';
+
+const formatTime = (time: number) => {
+  return time.toFixed(4);
+};
+
 function test(description: string, fn: () => void) {
   const startTime = performance.now();
+
   try {
     fn();
     const endTime = performance.now();
+
     console.log(
-      `\n✅ [${new Date().toLocaleTimeString()}] ${description} - Passed`
+      `\n${GREEN}${SUCCESS_SYMBOL} ${CYAN}[${formatTime(
+        endTime - startTime
+      )}ms]${RESET}${GREEN} ${description} - Passed${RESET}`
     );
-    console.log(`   Execution Time: ${endTime - startTime}ms`);
   } catch (error: any) {
     const endTime = performance.now();
+
     console.log(
-      `\n❌ [${new Date().toLocaleTimeString()}] ${description} - Failed`
+      `\n${RED}${ERROR_SYMBOL} ${CYAN}[${formatTime(
+        endTime - startTime
+      )}ms]${RESET}${RED} ${description} - Failed${RESET}`
     );
-    console.log(`   Execution Time: ${endTime - startTime}ms`);
+
     if (error instanceof AssertionError) {
-      console.log(`   Error Type: Assertion Failure`);
-      console.log(`   ${error.message}`);
-      console.log(`   Difference:\n${error.getDiff(3)}`);
+      console.log(error.asString());
     } else {
-      console.log(`   Error Type: Unexpected Error`);
-      console.log(`   Message: ${error.message}`);
-      console.log(`   Stack Trace:`);
-      console.log(`   ${error.stack}`);
+      console.log(`${GRAY}${error.stack || error.message}${RESET}`);
     }
   }
 }
