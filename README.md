@@ -1,3 +1,8 @@
+> [!WARNING]
+> This project has been discontinued. We are shipping the deno binary directly.
+
+---
+
 # Tanxium
 
 Embeddable JavaScript/TypeScript runtime for
